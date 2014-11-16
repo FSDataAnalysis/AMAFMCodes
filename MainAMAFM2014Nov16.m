@@ -5,7 +5,7 @@ clc;
 
 %%%%% Check if you are in the right folder %%%%%%
 
-Main_file_find= dir(fullfile('MainAMAFM2014Nov09.m') );
+Main_file_find= dir(fullfile('MainAMAFM2014Nov16.m') );
 Main_file_find_name_cell = strcat({Main_file_find.name});
 
 if isempty(Main_file_find_name_cell{1})==1
@@ -21,11 +21,12 @@ end
 %%%% Question: 5. Remove outliers for mean and std. 
 
 prompt_main= {'Process Files (0/1):', 'Edis(FAD) (stats)(0/1):', 'FAD/Work AD (stats) (0/1):', ...
-    'Young M (stats) (0/1):', 'Remove outliers before stats (0/1):'};
+    'Young M (stats) (0/1):', 'Remove outliers before stats (0/1):', 'Young M-Find d=0 (DMT) :', ...
+    'Minimum DMT force:', 'Break if error (0/1):'};
 
 dlg_title_main='Main';
 num_lines=1;
-default_main={'1','1','1','1','1'};
+default_main={'1','1','1','1','1', '1', '0.4','0'};
 answer_main=inputdlg(prompt_main,dlg_title_main,num_lines,default_main);
 
 ParentDirMain=pwd;
@@ -35,22 +36,35 @@ stats_Edis= str2double(answer_main(2));
 Stats_FAD= str2double(answer_main(3));
 Stats_YounM= str2double(answer_main(4));
 Stats_ROutliers= str2double(answer_main(5));
+find_d_is_zero_DMT=str2double(answer_main(6));
+DUMB_cut_off_force=str2double(answer_main(7));
+Cut_off_force=DUMB_cut_off_force;
+Break_error=str2double(answer_main(8));
 
-
+save_final_vectors=1;
 %%%% folder where figures will be saved
-save_processed=strcat(ParentDirMain,'\StatisticsAttractive\ION');
+save_processed=strcat(ParentDirMain,'\StatisticsAttractive');
 cd(save_processed);
-if exist('DATA_FOLDER', 'dir')==1
-    rmdir('DATA_FOLDER', 's');  %delete everything in it!
+if exist('ION', 'dir')
+    rmdir('ION', 's');  %delete everything in it!
 end
-mkdir('DATA_FOLDER');
+mkdir('ION');
 cd(ParentDirMain);
+
+if exist('SAVED_DATA', 'dir')
+    rmdir('SAVED_DATA', 's');  %delete everything in it!
+end
+mkdir('SAVED_DATA');
+
+%% In the SAVED_DATA directory all the data will be saved for each file
+save_all_data=strcat(ParentDirMain,'\SAVED_DATA'); 
+
 
 %%%%%% delete files of MAT in main code %%%%%%%%%%%%%%
 
 save_mat_path=strcat(ParentDirMain,'\MainCode');
 cd(save_mat_path);
-if exist('MAT_DATA', 'dir')==1
+if exist('MAT_DATA', 'dir')
     rmdir('MAT_DATA', 's');  %delete everything in it!
 end
 cd(ParentDirMain);
@@ -236,7 +250,7 @@ else  %%% Do not process files, i.e. it is added file by file
     end
     
     cd(Folder_RAWFILES);
-    %%%% find mat files %%%%%%%%%%%%%%
+    %%%% find txt files %%%%%%%%%%%%%%
     add_files_raw = dir(fullfile('*.txt') );
     %%%%% Get names
     add_files_raw_names = strcat({add_files_raw.name});
@@ -279,21 +293,44 @@ fNames = strcat(fPath, filesep, {fNames.name});
 cd(Folder_MainCode);
 MainForces;   % This caculates forces etc. 
 
+cd(ParentDirMain);
+save ('data_main', 'flag_failed_F_Adhesion', '-append');
+cd(Folder_MainCode);
+
+%%%% END COMPUTATION FORCES of MAIN CODE ------- %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+
 %%%%%% calculate Edis (at adhesion, FAD, etc.) 
 
 if stats_Edis==1
-    AveragesVirial_Edis_Etc;
-    cd(ParentDirMain);
     
-    foo_save_data = sprintf( 'Data_Energy_FAD_Virial');
+    AveragesVirial_Edis_Etc;
+    
+    cd(ParentDirMain);
+    foo_save_data = sprintf('Data_Energy_FAD_Virial');
     save (foo_save_data, 'Adhesion_M','Edis_crop_M', 'Edis_M', 'Virial_M',  'Edis_adhesion_M','Virial_adhesion_M'); 
     
-    
-    my_data_Edis_etc=[Adhesion_M,Edis_crop_M, Edis_M, Virial_M, Edis_adhesion_M,Virial_adhesion_M];
-    col_names={'Adhesion_M','Edis_crop_M', 'Edis_M', 'Virial_M',  'Edis_adhesion_M','Virial_adhesion_M'};
-
-    xlswrite(excel_file_Edis,col_names,1);   
-    xlswrite(excel_file_Edis,my_data_Edis_etc,1, 'A2');
+    if isequal(size(Adhesion_M), size(Edis_crop_M), size(Edis_M), ...
+        size(Virial_M), size(Edis_adhesion_M), size(Virial_adhesion_M)) 
+        
+        my_data_Edis_etc=[Adhesion_M,Edis_crop_M, Edis_M, Virial_M, Edis_adhesion_M,Virial_adhesion_M];
+        col_names_Edis={'Adhesion_M','Edis_crop_M', 'Edis_M', 'Virial_M',  'Edis_adhesion_M','Virial_adhesion_M'};
+        
+        xlswrite(excel_file_Edis,col_names_Edis, 'Edis');  
+        xlswrite(excel_file_Edis,my_data_Edis_etc, 'Edis', 'A2');
+ 
+    else
+     
+        col_names={'Failed to save data to excel, check data_file'};
+        status=0;
+        xlswrite(excel_file_Edis,col_names,'Edis');
+        xlswrite(excel_file_Edis,status,'Edis', 'A2');
+   
+    end
 
 else
     
@@ -317,16 +354,34 @@ if Stats_YounM==1
     foo_save_data = sprintf( 'Data_Young_Modulus');
     dumb_R=str2double(answer(8));
     
-    R_is=(ones(1,length(EE_M_NN))*dumb_R)';
+    R_is=(ones(1,length(EE_M_AL))*dumb_R)';
     
-    save (foo_save_data, 'EE_M_NN', 'R_is'); 
+    save (foo_save_data, 'EE_M_NN', 'R_is', 'flag_correct_YM_NN', 'EE_M_AL', 'EE_M_NN_single', ...
+        'flag_complex_NN', 'flag_complex_single_NN', 'correction_Indentation_NN'); 
     
     
-    my_data_YM=[EE_M_NN, R_is];
-    col_names_YM={'Young Modulus (GPa)','Tip radius'};
+    
+    if isequal(size(EE_M_NN), size(R_is), size(flag_correct_YM_NN), ...
+        size(EE_M_AL), size(EE_M_NN), size(flag_complex_NN), size(flag_complex_single_NN), size(correction_Indentation_NN)) 
+    
+        my_data_YM=[EE_M_NN, EE_M_NN_single, EE_M_AL,  R_is, ...
+            flag_correct_YM_NN, flag_complex_NN, flag_complex_single_NN, correction_Indentation_NN ];
+        
+        
+        col_names_YM={'Young Modulus (GPa)', 'Young M (GPa) Single fit', 'Estimation YM (GPa)', ...
+            'Tip radius', 'Success DMT', 'Complex DMT', 'Complex single', 'Indentation Correction'};
 
-    xlswrite(excel_file_YM, col_names_YM, 1);   
-    xlswrite(excel_file_YM, my_data_YM,1, 'A2');
+        xlswrite(excel_file_YM, col_names_YM, 'YM' );   
+        xlswrite(excel_file_YM, my_data_YM, 'YM', 'A2');
+    
+    else
+        
+        col_names={'Failed to save data to excel, check data_file'};
+        status=0;
+        xlswrite(excel_file_YM,col_names, 'YM');
+        xlswrite(excel_file_YM,status, 'YM', 'A2');
+        
+    end
 
 else
     
@@ -393,11 +448,7 @@ if Stats_FAD==1
     cd(ParentDirMain);
     
     number_of_points=dumb_loop;
-    
-    col_names={'Force Adhesion','Work of Adhesion', 'dFAD', 'Percentage'};
-    
-    xlswrite(excel_file_dFAD, col_names,1);   
-    
+   
     foo_n=size(Matrix_values);
     
     dd_number_files=foo_n(1);
@@ -434,8 +485,26 @@ if Stats_FAD==1
         M_dFAD=[M_dFAD; dumb_3_m];
     end
     
-    xlswrite(excel_file_dFAD, M_dFAD,1, 'A2');
+    M_dFAD_real=M_dFAD;
+    M_dFAD_real(any(isnan(M_dFAD),2),:) = [];
     
+    if ~isempty(M_dFAD_real) 
+        
+        col_names={'Force Adhesion','Work of Adhesion', 'dFAD', 'Percentage'};
+    
+        xlswrite(excel_file_dFAD, col_names, 'dAF'); 
+        xlswrite(excel_file_dFAD, M_dFAD_real, 'dAF', 'A2');
+         
+    else
+                
+        col_names={'Failed to save data to excel, check data_file'};
+        status=0;
+        xlswrite(excel_file_dFAD,col_names,1);
+        xlswrite(excel_file_dFAD,status,'A2');       
+    end 
+    
+    
+    save ('data_stats_dFAD', 'M_dFAD','M_dFAD_real', '-append'); 
 end
 
 
@@ -445,4 +514,20 @@ end
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+
+
+%%% add files to data save files folder %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+
+
+%%%% find mat files %%%%%%%%%%%%%%
+Mat_files_raw_data = dir(fullfile('*.mat') );
+%%%%% Get names
+Mat_files_raw_names_data = strcat({Mat_files_raw_data.name});
+
+number_files_mat=length(Mat_files_raw_names_data);
+
+
+for fff=1:number_files_mat
+    movefile(Mat_files_raw_names_data{fff},save_all_data);
+end
 
