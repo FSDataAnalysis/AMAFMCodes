@@ -5,7 +5,7 @@ clc;
 
 %%%%% Check if you are in the right folder %%%%%%
 
-Main_file_find= dir(fullfile('MainAMAFM2014Nov16.m') );
+Main_file_find= dir(fullfile('MainAMAFM2014Nov24.m') );
 Main_file_find_name_cell = strcat({Main_file_find.name});
 
 if isempty(Main_file_find_name_cell{1})==1
